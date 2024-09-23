@@ -1,0 +1,9 @@
+package groups;
+import java.util.*;
+
+public class Customer {
+	String name;
+	Customer(String name) {this.name = name;}
+	TreeSet<String> groups = new TreeSet<>();
+	
+}

@@ -1,0 +1,12 @@
+package groups;
+import java.util.*;
+
+public class Supplier {
+	String name;
+	int nBids = 0;
+	Supplier(String name) {this.name = name;}
+	TreeSet<String> products = new TreeSet<>();
+	//TreeSet<String> groups = new TreeSet<>();
+	int getNBids() {return nBids;}
+	String getName() {return name;}
+}

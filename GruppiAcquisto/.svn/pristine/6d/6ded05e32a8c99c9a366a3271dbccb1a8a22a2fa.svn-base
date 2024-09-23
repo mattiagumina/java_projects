@@ -1,0 +1,140 @@
+package groups;
+import java.util.*;
+
+import static java.util.stream.Collectors.*;
+import static java.util.Comparator.*;
+
+public class GroupHandling {
+	SortedMap<String, Product> products = new TreeMap<>();
+	SortedMap<String, Supplier> suppliers = new TreeMap<>();
+	SortedMap<String, Customer> customers = new TreeMap<>();
+	SortedMap<String, Group> groups = new TreeMap<>();
+	List<Bid> bids = new ArrayList<>(); //serve per la stat maxPricePerProductType
+//R1	
+	public void addProduct (String productTypeName, String... supplierNames) 
+			throws GroupHandlingException {
+		if (products.containsKey(productTypeName)) 
+			throw new GroupHandlingException("DUPLICATED PRODUCT " + productTypeName);
+		Product p = new Product(productTypeName); products.put(productTypeName, p);
+		for (String supplierName: supplierNames) {
+			Supplier supplier = suppliers.get(supplierName);
+			if (supplier == null) {
+				supplier = new Supplier(supplierName); suppliers.put(supplierName, supplier);
+			}
+			p.suppliers.add(supplierName); supplier.products.add(productTypeName); // rel nn bidirezionale 
+		}
+	}
+	
+	public List<String> getProductTypes (String supplierName) {
+		return new ArrayList<>(suppliers.get(supplierName).products);
+	}
+	
+//R2	
+	public void addGroup (String name, String productName, String... customerNames) 
+			throws GroupHandlingException {
+		if (groups.containsKey(name)) 
+			throw new GroupHandlingException("DUPLICATED GROUP " + name);
+		Product p = products.get(productName);
+		if (p == null) throw new GroupHandlingException("UNKNOWN PRODUCT " + productName);
+		Group group = new Group(name); groups.put(name, group);
+		group.productName = productName;
+		for (String customerName: customerNames) {
+			Customer customer = customers.get(customerName);
+			if (customer == null) {
+				customer = new Customer(customerName); customers.put(customerName, customer);
+			}
+			customer.groups.add(name); group.customers.add(customerName); // rel nn bidirezionale
+		}
+		
+	}
+	
+	public List<String> getGroups (String customerName) {
+		return new ArrayList<>(customers.get(customerName).groups);
+	}
+
+//R3
+	public void setSuppliers (String groupName, String... supplierNames)
+			throws GroupHandlingException {
+		Group group = groups.get(groupName);
+		for (String supplierName: supplierNames) {
+			Supplier supplier = suppliers.get(supplierName);
+			if (supplier == null) throw new GroupHandlingException("UNKNOWN SUPPLIER " + supplierName);
+			if (! supplier.products.contains(group.productName)) 
+					throw new GroupHandlingException("UNSUITABLE SUPPLIER " + supplierName);
+		}
+		for (String supplierName: supplierNames) {
+			group.suppliers.add(supplierName);
+		}
+	}
+	
+	public void addBid (String groupName, String supplierName, int price)
+			throws GroupHandlingException {
+		Group group = groups.get(groupName);
+		if (! group.suppliers.contains(supplierName)) 
+			throw new GroupHandlingException("SUPPLIER NOT IN GROUP " + supplierName);
+		Bid bid = new Bid(supplierName, price, group.productName);
+		group.bids.put(supplierName, bid);
+		bids.add(bid); //serve per la stat maxPricePerProductType
+		Supplier supplier = suppliers.get(supplierName);
+		supplier.nBids++;
+	}
+	
+	public String getBids (String groupName) {
+		Group group = groups.get(groupName);
+		return group.bids.values().stream()
+			.sorted(comparing(Bid::getPrice).thenComparing(Bid::getSupplierName))
+			.map(bid -> {return bid.supplierName + ":" + bid.price;})
+			.collect(joining(","));
+	}
+	
+	
+//R4	
+	public void vote (String groupName, String customerName, String supplierName)
+			throws GroupHandlingException {
+		Group group = groups.get(groupName);
+		if (! group.customers.contains(customerName)) 
+			throw new GroupHandlingException("UNKNOWN CUSTOMER " + customerName);
+		Bid bid = group.bids.get(supplierName);
+		if (bid == null) throw new GroupHandlingException("NO BID FROM SUPPLIER " + supplierName);
+		//bid.customers.add(customerName);
+		bid.nVotes++;
+	}
+	
+	public String  getVotes (String groupName) {
+		Group group = groups.get(groupName);
+		return group.bids.values().stream()
+			.sorted(comparing(Bid::getSupplierName))
+			.filter((bid -> bid.nVotes > 0))
+			.map(bid -> {return bid.supplierName + ":" + bid.nVotes;})
+			.collect(joining(","));
+	}
+	
+	public String getWinningBid (String groupName) {
+		Group group = groups.get(groupName);
+		Bid bid = group.bids.values().stream().max(comparing(Bid::getNVotes).
+				thenComparing(Bid::getPrice, reverseOrder())).orElse(null);
+		if (bid == null) return null;
+		return (bid.supplierName) + ":" + bid.nVotes;
+	}
+	
+//R5
+	public SortedMap<String, Integer> maxPricePerProductType() { //serve toMap
+		return bids.stream()
+		.collect(toMap(Bid::getProductName, Bid::getPrice, 
+			(p1,p2) -> {return p1 >= p2 ? p1:p2;}, TreeMap::new));
+	}
+	
+	public SortedMap<Integer, List<String>> suppliersPerNumberOfBids() {
+		return suppliers.values().stream()
+		.filter(supplier -> supplier.getNBids() > 0)
+		.collect(groupingBy(Supplier::getNBids, () -> new TreeMap<Integer, List<String>>(reverseOrder()),
+			mapping(Supplier::getName,toList()))); // i suppliers sono gia ordinati grazie alla TreeMap suppliers
+	}
+	
+	public SortedMap<String, Long> numberOfCustomersPerProductType() {
+		return groups.values().stream()
+		.filter(group -> group.getCustomerNumber() > 0 )
+		.collect(groupingBy(Group::getProductName, TreeMap::new, summingLong(Group::getCustomerNumber)));
+	}
+	
+}

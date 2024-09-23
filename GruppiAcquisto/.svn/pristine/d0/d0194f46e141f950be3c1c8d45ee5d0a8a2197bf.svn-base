@@ -1,0 +1,13 @@
+package groups;
+import java.util.*;
+
+public class Group {
+	String name;
+	Group(String name) {this.name = name;}
+	TreeSet<String> customers = new TreeSet<>();
+	String productName;
+	TreeSet<String> suppliers = new TreeSet<>();
+	TreeMap<String, Bid> bids = new TreeMap<>(); // la key è il nome del supplier
+	String getProductName() {return productName;}
+	int getCustomerNumber() {return customers.size();}
+}
